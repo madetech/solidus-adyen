@@ -49,11 +49,21 @@ module Spree
 
       private
 
+      def ensure_payment_response_code_exists
+        # Payment may not have psp_reference. Add this from notification if it
+        # doesn't have one.
+        unless self.payment.response_code
+          payment.response_code = notification.psp_reference
+          payment.save
+        end
+      end
+
       def handle_failure
         notification.processed!
         # ignore failures if the payment was already completed, or if it doesn't
         # exist
         return if payment.nil? || payment.completed? || payment.failed?
+        ensure_payment_response_code_exists
         # might have to do something else on modification events,
         # namely refunds
         payment.failure!
@@ -82,12 +92,7 @@ module Spree
 
       # normal event is defined as just AUTHORISATION
       def handle_normal_event
-        # Payment may not have psp_reference. Add this from notification if it
-        # doesn't have one.
-        unless self.payment.response_code
-          payment.response_code = notification.psp_reference
-          payment.save
-        end
+        ensure_payment_response_code_exists
 
         if notification.auto_captured?
           complete_payment!
